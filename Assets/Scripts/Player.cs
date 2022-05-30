@@ -1,37 +1,43 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class Player : MonoBehaviour
 {
+    public new Rigidbody2D rigidbody { get; private set; }
     public Bullet bulletPrefab;
 
-    public float thrustSpeed = 1.0f;
+    public float thrustSpeed = 1f;
+    public bool thrusting { get; private set; }
 
-    public float turnSpeed = 1.0f;
-    
-    private Rigidbody2D _rigidbody;
+    public float turnDirection { get; private set; } = 0f;
+    public float rotationSpeed = 0.1f;
 
-    private bool _thrusting;
-
-    private float _turnDirection;
+    public float respawnDelay = 3f;
+    public float respawnInvulnerability = 3f;
 
     private void Awake()
     {
-        _rigidbody = GetComponent<Rigidbody2D>();
+        rigidbody = GetComponent<Rigidbody2D>();
     }
 
+    private void OnEnable()
+    {
+        // Turn off collisions for a few seconds after spawning to ensure the
+        // player has enough time to safely move away from asteroids
+        gameObject.layer = LayerMask.NameToLayer("Ignore Collisions");
+        Invoke(nameof(TurnOnCollisions), respawnInvulnerability);
+    }
 
     private void Update()
     {
-        _thrusting = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+        thrusting = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
 
         if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) {
-            _turnDirection = 1.0f;
+            turnDirection = 1f;
         } else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) {
-            _turnDirection = -1.0f;
+            turnDirection = -1f;
         } else {
-            _turnDirection = 0.0f;
+            turnDirection = 0f;
         }
 
         if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) {
@@ -41,20 +47,36 @@ public class Player : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (_thrusting) {
-            _rigidbody.AddForce(this.transform.up * this.thrustSpeed);
+        if (thrusting) {
+            rigidbody.AddForce(transform.up * thrustSpeed);
         }
 
-        if (_turnDirection != 0.0f) {
-            _rigidbody.AddTorque(_turnDirection * this.turnSpeed); 
+        if (turnDirection != 0f) {
+            rigidbody.AddTorque(rotationSpeed * turnDirection);
         }
     }
 
-
     private void Shoot()
     {
-        Bullet bullet = Instantiate(this.bulletPrefab, this.transform.position, this.transform.rotation);
-        bullet.Project(this.transform.up);
+        Bullet bullet = Instantiate(bulletPrefab, transform.position, transform.rotation);
+        bullet.Project(transform.up);
+    }
+
+    private void TurnOnCollisions()
+    {
+        gameObject.layer = LayerMask.NameToLayer("Player");
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Asteroid"))
+        {
+            rigidbody.velocity = Vector3.zero;
+            rigidbody.angularVelocity = 0f;
+            gameObject.SetActive(false);
+
+            FindObjectOfType<GameManager>().PlayerDeath(this);
+        }
     }
 
 }
